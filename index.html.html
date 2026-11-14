@@ -1,0 +1,2291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Un Millón de Piratas — Multijugador Online P2P</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Pirata+One&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Fredoka', sans-serif;
+      background: radial-gradient(circle at center, #0e7490 0%, #082f49 100%);
+      color: #fef3c7;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .font-pirate {
+      font-family: 'Pirata One', cursive;
+      letter-spacing: 0.04em;
+    }
+
+    .parchment-box {
+      background: linear-gradient(145deg, #fdf3dc 0%, #edd19b 100%);
+      color: #451a03;
+      border: 4px solid #78350f;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55), inset 0 0 25px rgba(180, 120, 40, 0.35);
+    }
+
+    .wood-panel {
+      background: linear-gradient(180deg, #78350f 0%, #451a03 100%);
+      border: 3px solid #b45309;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-pirate {
+      background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+      color: #270e02;
+      border: 3px solid #fef3c7;
+      box-shadow: 0 5px 0 #78350f, 0 8px 18px rgba(0, 0, 0, 0.45);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.15s ease;
+      cursor: pointer;
+    }
+
+    .btn-pirate:hover:not(:disabled) {
+      filter: brightness(1.08);
+      transform: translateY(-2px);
+      box-shadow: 0 7px 0 #78350f, 0 12px 22px rgba(0, 0, 0, 0.5);
+    }
+
+    .btn-pirate:active:not(:disabled) {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #78350f, 0 4px 10px rgba(0, 0, 0, 0.4);
+    }
+
+    .btn-pirate:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-red {
+      background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+      color: #fff;
+      border: 3px solid #fecaca;
+      box-shadow: 0 5px 0 #7f1d1d, 0 8px 18px rgba(0, 0, 0, 0.45);
+      cursor: pointer;
+    }
+
+    .btn-red:active:not(:disabled) {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #7f1d1d;
+    }
+
+    .btn-emerald {
+      background: linear-gradient(180deg, #10b981 0%, #047857 100%);
+      color: #fff;
+      border: 3px solid #a7f3d0;
+      box-shadow: 0 5px 0 #064e3b, 0 8px 18px rgba(0, 0, 0, 0.45);
+      cursor: pointer;
+    }
+
+    .btn-emerald:active:not(:disabled) {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #064e3b;
+    }
+
+    @keyframes floatSlow {
+      0%, 100% { transform: translateY(0px) rotate(-1deg); }
+      50% { transform: translateY(-6px) rotate(1deg); }
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.75); opacity: 0; }
+      75% { transform: scale(1.04); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes diceShake {
+      0% { transform: rotate(0deg) scale(1.1); }
+      25% { transform: rotate(-18deg) scale(1.15); }
+      50% { transform: rotate(18deg) scale(1.15); }
+      75% { transform: rotate(-12deg) scale(1.1); }
+      100% { transform: rotate(0deg) scale(1); }
+    }
+
+    @keyframes bubbleFloat {
+      0% { transform: translateY(15px) scale(0.8); opacity: 0; }
+      15% { transform: translateY(0) scale(1); opacity: 1; }
+      85% { transform: translateY(-10px) scale(1); opacity: 1; }
+      100% { transform: translateY(-25px) scale(0.9); opacity: 0; }
+    }
+
+    .animate-float { animation: floatSlow 3.5s ease-in-out infinite; }
+    .animate-pop { animation: popIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .animate-dice { animation: diceShake 0.35s ease-in-out; }
+    .animate-bubble { animation: bubbleFloat 3.4s ease-out forwards; }
+
+    canvas#seaCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: manipulation;
+    }
+  </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden flex flex-col">
+
+  <!-- ==================== PANTALLA 1: LOBBY P2P (CREAR O UNIRSE A SALA) ==================== -->
+  <div id="lobbyScreen" class="absolute inset-0 z-30 flex items-center justify-center p-3 sm:p-6 bg-gradient-to-b from-sky-900/95 via-cyan-950/95 to-slate-950/95 overflow-y-auto">
+    <div class="parchment-box w-full max-w-3xl rounded-3xl p-5 sm:p-8 relative my-auto">
+
+      <!-- Barra superior de estado P2P y sonido -->
+      <div class="flex items-center justify-between mb-3">
+        <div class="inline-flex items-center gap-2 bg-amber-950/15 border border-amber-800/30 px-3 py-1 rounded-full text-xs font-bold text-amber-950">
+          <span id="p2pStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+          <span id="p2pStatusText">Listo para zarpar (Conexión Directa P2P)</span>
+        </div>
+        <button id="muteBtnLobby" class="bg-amber-900/20 hover:bg-amber-900/30 text-amber-950 font-bold px-3 py-1.5 rounded-2xl border-2 border-amber-800/40 text-sm transition">
+          <span id="soundIconLobby">🔊</span>
+        </button>
+      </div>
+
+      <!-- Título -->
+      <div class="text-center mb-5">
+        <div class="inline-flex items-center gap-2 bg-emerald-800/15 border border-emerald-700/40 px-4 py-1 rounded-full text-xs sm:text-sm font-bold text-emerald-950 mb-1">
+          🌐 MULTIJUGADOR DIRECTO P2P • SIN CUENTAS NI SERVIDORES
+        </div>
+        <h1 class="font-pirate text-4xl sm:text-6xl text-amber-950 drop-shadow-sm animate-float">
+          ⚓ Un Millón de Piratas ⚓
+        </h1>
+        <p class="text-amber-900/90 text-xs sm:text-sm font-medium">
+          Crea una sala, pasa el código o enlace directo a tus amigos y compitan en vivo.
+        </p>
+      </div>
+
+      <!-- Paso 1: Personalización del Capitán -->
+      <div id="profileSetupSection" class="bg-white/75 rounded-2xl p-4 border-2 border-amber-800/30 mb-5">
+        <div class="text-xs font-bold uppercase tracking-wider text-amber-900 mb-2.5">1. Personaliza tu Capitán</div>
+        <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+          <!-- Nombre -->
+          <div class="sm:col-span-5">
+            <label class="block text-[11px] font-bold text-amber-900 mb-1">Nombre Pirata</label>
+            <input type="text" id="pirateNameInput" maxlength="16" placeholder="Ej: Barbanegra"
+              class="w-full bg-amber-50 border-2 border-amber-800/40 rounded-xl px-3 py-2 font-bold text-amber-950 text-sm focus:outline-none focus:border-amber-600" />
+          </div>
+
+          <!-- Selector de 6 colores de vela -->
+          <div class="sm:col-span-4">
+            <label class="block text-[11px] font-bold text-amber-900 mb-1">Color de Vela</label>
+            <div id="sailColorPicker" class="flex items-center gap-1.5">
+              <!-- Botones generados por JS -->
+            </div>
+          </div>
+
+          <!-- Selector de 6 emblemas -->
+          <div class="sm:col-span-3">
+            <label class="block text-[11px] font-bold text-amber-900 mb-1">Emblema</label>
+            <div id="emblemPicker" class="flex items-center gap-1 flex-wrap">
+              <!-- Botones generados por JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paso 2: Opción A (Crear Sala) vs Opción B (Unirse a Sala) -->
+      <div id="lobbyChoiceSection" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Opción A: Crear Sala (Host) -->
+        <div class="bg-amber-900/10 rounded-2xl p-4 border-2 border-amber-800/25 flex flex-col justify-between">
+          <div>
+            <h3 class="font-pirate text-2xl text-amber-950 mb-1">⛵ Crear Sala (Anfitrión)</h3>
+            <p class="text-xs text-amber-900 mb-3">Genera un código corto para invitar a tus amigos o añadir Bots IA.</p>
+            <label class="block text-xs font-bold text-amber-950 mb-1">⏳ Duración de la Partida:</label>
+            <select id="roundsSelect" class="w-full bg-amber-50 border-2 border-amber-800/30 rounded-xl px-3 py-2 font-bold text-sm text-amber-950 mb-4">
+              <option value="5">Relámpago (5 Rondas)</option>
+              <option value="8" selected>Clásica (8 Rondas)</option>
+              <option value="12">Épica (12 Rondas)</option>
+            </select>
+          </div>
+          <button id="createHostBtn" class="btn-pirate font-pirate text-2xl py-2.5 px-5 rounded-2xl w-full">
+            🏴‍☠️ CREAR SALA P2P
+          </button>
+        </div>
+
+        <!-- Opción B: Unirse a Sala (Cliente) -->
+        <div class="bg-amber-900/10 rounded-2xl p-4 border-2 border-amber-800/25 flex flex-col justify-between">
+          <div>
+            <h3 class="font-pirate text-2xl text-amber-950 mb-1">🧭 Unirse a Sala</h3>
+            <p class="text-xs text-amber-900 mb-3">Introduce el código de 4 caracteres que te compartió el anfitrión.</p>
+            <label class="block text-xs font-bold text-amber-950 mb-1">🔑 Código de Sala (4 letras/números):</label>
+            <input type="text" id="joinCodeInput" maxlength="4" placeholder="ABCD"
+              class="w-full uppercase tracking-widest text-center font-pirate text-3xl bg-amber-50 border-2 border-amber-800/40 rounded-xl px-3 py-1 text-amber-950 mb-4 focus:outline-none focus:border-amber-600" />
+          </div>
+          <button id="joinClientBtn" class="btn-emerald font-pirate text-2xl py-2.5 px-5 rounded-2xl w-full">
+            ⚓ UNIRSE A LA TRIPULACIÓN
+          </button>
+        </div>
+      </div>
+
+      <!-- Paso 3: Sala de Espera Conectada (Host y Clientes) -->
+      <div id="waitingRoomSection" class="hidden bg-amber-900/10 rounded-2xl p-4 sm:p-5 border-2 border-amber-800/30">
+        <!-- Caja del Código y Botones de Compartir -->
+        <div class="flex flex-col lg:flex-row items-center justify-between gap-3 bg-amber-950 text-amber-100 px-4 py-3 rounded-2xl mb-4">
+          <div class="text-center lg:text-left">
+            <div class="text-[11px] text-amber-300 font-bold uppercase tracking-wider">Código de Sala Activa</div>
+            <div id="activeRoomCodeDisplay" class="font-pirate text-4xl tracking-widest text-yellow-400 leading-none mt-0.5">----</div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            <button id="copyCodeBtn" class="btn-pirate font-bold text-xs sm:text-sm px-3.5 py-2 rounded-xl flex items-center gap-1.5">
+              <span>📋</span> <span id="copyCodeLabel">Copiar Código</span>
+            </button>
+            <button id="copyLinkBtn" class="btn-emerald font-bold text-xs sm:text-sm px-3.5 py-2 rounded-xl flex items-center gap-1.5">
+              <span>🔗</span> <span id="copyLinkLabel">Copiar Enlace con Código</span>
+            </button>
+            <button id="leaveLobbyBtn" class="btn-red font-bold text-xs sm:text-sm px-3 py-2 rounded-xl">
+              Salir
+            </button>
+          </div>
+        </div>
+
+        <!-- Cabecera de Tripulación y Botón Añadir Bot (Solo Host) -->
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <span class="text-sm font-bold text-amber-950">👥 Tripulación Conectada (<span id="crewCountText">1</span>/4)</span>
+          <div class="flex items-center gap-2">
+            <span id="lobbyRoundsBadge" class="text-xs font-bold bg-amber-800/20 text-amber-950 px-2.5 py-1 rounded-full">8 Rondas</span>
+            <button id="addBotBtn" class="hidden bg-sky-700 hover:bg-sky-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl border border-sky-300 shadow transition">
+              🤖 + Añadir Bot IA
+            </button>
+          </div>
+        </div>
+
+        <!-- Lista de jugadores en el lobby -->
+        <div id="waitingPlayersList" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5"></div>
+
+        <!-- Controles de Inicio -->
+        <div class="text-center">
+          <button id="startMatchBtn" class="hidden btn-pirate font-pirate text-3xl px-10 py-3 rounded-2xl w-full sm:w-auto">
+            ⛵ ¡ZARPAR!
+          </button>
+          <p id="waitingHintText" class="text-xs text-amber-900 mt-2 font-bold">
+            Comparte el código o el enlace para que tus amigos entren a la sala (mínimo 2 participantes).
+          </p>
+        </div>
+      </div>
+
+      <!-- Banner de Estado / Error del Lobby -->
+      <div id="lobbyFeedbackMsg" class="hidden mt-4 text-sm font-bold px-4 py-2.5 rounded-xl text-center"></div>
+    </div>
+  </div>
+
+  <!-- ==================== PANTALLA 2: TABLERO MARÍTIMO SINCRONIZADO ==================== -->
+  <div id="gameScreen" class="hidden flex-col w-full h-full relative">
+
+    <!-- Barra Superior -->
+    <header class="wood-panel z-20 px-2.5 py-2 sm:px-5 sm:py-2.5 flex flex-wrap items-center justify-between gap-2 rounded-b-2xl mx-1 sm:mx-3">
+      <div class="flex items-center gap-2">
+        <button id="exitGameBtn" class="bg-amber-950/80 hover:bg-amber-900 text-amber-200 px-2.5 py-1.5 rounded-xl border border-amber-700 text-xs font-bold">
+          🚪 Salir
+        </button>
+        <div class="bg-amber-950/80 px-2.5 py-1.5 rounded-xl border border-amber-600/60 flex items-center gap-1.5">
+          <span class="text-amber-300 text-xs font-bold">Sala</span>
+          <span id="hudRoomCode" class="font-pirate text-lg text-yellow-400 leading-none">----</span>
+        </div>
+        <div class="bg-amber-950/80 px-2.5 py-1.5 rounded-xl border border-amber-600/60 flex items-center gap-1.5">
+          <span class="text-amber-300 text-xs font-bold">🧭 Ronda</span>
+          <span id="roundDisplay" class="font-pirate text-lg sm:text-xl text-yellow-400 leading-none">1 / 8</span>
+        </div>
+      </div>
+
+      <!-- Marcadores de Capitanes -->
+      <div id="scoreboardContainer" class="flex items-center gap-1.5 sm:gap-2 overflow-x-auto max-w-full py-0.5"></div>
+
+      <!-- Botones Leyenda y Sonido -->
+      <div class="flex items-center gap-1.5">
+        <button id="legendBtn" class="bg-amber-950/80 hover:bg-amber-900 text-amber-200 px-2.5 py-1.5 rounded-xl border border-amber-700 text-xs font-bold">
+          🗺️ Casillas
+        </button>
+        <button id="muteBtnGame" class="bg-amber-950/80 hover:bg-amber-900 text-amber-200 px-2.5 py-1.5 rounded-xl border border-amber-700 text-xs font-bold">
+          <span id="soundIconGame">🔊</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Lienzo del Océano + Reacciones Flotantes -->
+    <main class="relative flex-1 w-full h-full overflow-hidden">
+      <canvas id="seaCanvas"></canvas>
+
+      <!-- Notificación flotante superior -->
+      <div id="floatingBanner" class="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 z-10 transition-all duration-300 opacity-0 -translate-y-4">
+        <div id="floatingBannerInner" class="parchment-box px-5 py-2 rounded-full font-bold text-xs sm:text-base shadow-xl whitespace-nowrap">
+          ¡Viento en popa!
+        </div>
+      </div>
+
+      <!-- Contenedor de Burbujas de Chat Rápido -->
+      <div id="liveReactionsOverlay" class="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-col gap-1.5 max-w-xs"></div>
+
+      <!-- Barra de Reacciones Rápidas Piratas -->
+      <div class="absolute bottom-3 right-3 z-10 flex flex-wrap justify-end gap-1.5 max-w-[270px] sm:max-w-md">
+        <button data-emote="⚔️ ¡Al abordaje!" class="quick-emote-btn bg-amber-950/85 hover:bg-amber-900 text-amber-100 border border-amber-500/60 px-2.5 py-1.5 rounded-full text-xs font-bold shadow-lg active:scale-95 transition">
+          ⚔️ ¡Al abordaje!
+        </button>
+        <button data-emote="🤬 ¡Maldición!" class="quick-emote-btn bg-amber-950/85 hover:bg-amber-900 text-amber-100 border border-amber-500/60 px-2.5 py-1.5 rounded-full text-xs font-bold shadow-lg active:scale-95 transition">
+          🤬 ¡Maldición!
+        </button>
+        <button data-emote="🍺 ¡Por el ron!" class="quick-emote-btn bg-amber-950/85 hover:bg-amber-900 text-amber-100 border border-amber-500/60 px-2.5 py-1.5 rounded-full text-xs font-bold shadow-lg active:scale-95 transition">
+          🍺 ¡Por el ron!
+        </button>
+        <button data-emote="🎯 ¡Buen tiro!" class="quick-emote-btn bg-amber-950/85 hover:bg-amber-900 text-amber-100 border border-amber-500/60 px-2.5 py-1.5 rounded-full text-xs font-bold shadow-lg active:scale-95 transition">
+          🎯 ¡Buen tiro!
+        </button>
+      </div>
+    </main>
+
+    <!-- Panel Inferior de Acción y Bitácora -->
+    <footer class="wood-panel z-20 px-3 py-2.5 sm:px-6 sm:py-3 rounded-t-2xl mx-1 sm:mx-3 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+      <!-- Turno Actual -->
+      <div class="flex items-center gap-3">
+        <div id="turnFlagBadge" class="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl border-2 border-amber-200 shadow-md">
+          💀
+        </div>
+        <div>
+          <div id="turnRoleLabel" class="text-xs uppercase tracking-wider text-amber-300 font-bold">Turno Actual</div>
+          <div id="turnPlayerName" class="font-pirate text-2xl sm:text-3xl text-white leading-tight">Esperando...</div>
+        </div>
+      </div>
+
+      <!-- Dado y Botón de Tirar -->
+      <div class="flex items-center gap-3 w-full sm:w-auto justify-center">
+        <div id="diceResultBox" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-100 border-4 border-amber-600 text-amber-950 font-pirate text-3xl sm:text-4xl flex items-center justify-center shadow-inner">
+          🎲
+        </div>
+        <button id="rollDiceBtn" disabled class="btn-pirate font-pirate text-2xl sm:text-3xl px-6 py-2.5 rounded-2xl flex items-center gap-2 flex-1 sm:flex-initial justify-center">
+          <span>🧭</span> <span id="rollBtnText">ESPERANDO TURNO</span>
+        </button>
+      </div>
+
+      <!-- Bitácora en vivo -->
+      <div class="flex items-center gap-2 bg-amber-950/75 border border-amber-700/60 px-3.5 py-2 rounded-xl w-full sm:max-w-xs text-xs text-amber-100">
+        <span>📜</span>
+        <span id="lastLogText" class="truncate">¡Todos los barcos en posición!</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ==================== MODAL DE EVENTOS Y MINIJUEGOS P2P ==================== -->
+  <div id="eventModal" class="hidden fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="parchment-box w-full max-w-lg rounded-3xl p-6 text-center animate-pop relative">
+      <div id="eventIcon" class="text-6xl mb-2">💰</div>
+      <h2 id="eventTitle" class="font-pirate text-3xl sm:text-4xl text-amber-950 mb-2">¡Tesoro Encontrado!</h2>
+      <p id="eventDesc" class="text-amber-900 font-medium text-base sm:text-lg mb-5">
+        Descripción del evento...
+      </p>
+
+      <!-- Zona dinámica para Minijuegos (Duelo PvP / Kraken) -->
+      <div id="minigameArea" class="hidden mb-5"></div>
+
+      <!-- Botón de Continuar -->
+      <button id="eventContinueBtn" class="btn-pirate font-pirate text-2xl px-8 py-2.5 rounded-2xl">
+        ¡Continuar Travesía! ⛵
+      </button>
+      <p id="spectatorWaitText" class="hidden text-xs font-bold text-amber-800 mt-2">
+        ⏳ Esperando a que el capitán activo complete la acción...
+      </p>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL LEYENDA DE CASILLAS ==================== -->
+  <div id="legendModal" class="hidden fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="parchment-box w-full max-w-md rounded-3xl p-6 animate-pop">
+      <h2 class="font-pirate text-3xl text-amber-950 text-center mb-4">🗺️ Guía de los Siete Mares</h2>
+      <div class="space-y-2 text-sm text-amber-950 mb-5">
+        <div class="flex items-center gap-3 bg-amber-900/10 p-2 rounded-xl">
+          <span class="text-2xl">💰</span>
+          <div><b>Tesoro:</b> Obtienes doblones de oro multiplicados por el tamaño de tu tripulación.</div>
+        </div>
+        <div class="flex items-center gap-3 bg-amber-900/10 p-2 rounded-xl">
+          <span class="text-2xl">🍺</span>
+          <div><b>Taberna:</b> Reclutas más piratas, lo que multiplica tus ganancias futuras.</div>
+        </div>
+        <div class="flex items-center gap-3 bg-amber-900/10 p-2 rounded-xl">
+          <span class="text-2xl">🌀</span>
+          <div><b>Remolino:</b> Te teletransporta 3 casillas adelante o te hace retroceder 2.</div>
+        </div>
+        <div class="flex items-center gap-3 bg-amber-900/10 p-2 rounded-xl">
+          <span class="text-2xl">💣</span>
+          <div><b>Duelo PvP:</b> Enfrentamiento de cañones con barra de puntería sincronizada para robar botín.</div>
+        </div>
+        <div class="flex items-center gap-3 bg-amber-900/10 p-2 rounded-xl">
+          <span class="text-2xl">🐙</span>
+          <div><b>Kraken:</b> Minijuego de clics rápidos para cortar sus tentáculos a tiempo.</div>
+        </div>
+        <div class="flex items-center gap-3 bg-amber-900/10 p-2 rounded-xl">
+          <span class="text-2xl">❓</span>
+          <div><b>Evento Misterioso:</b> Cartas sorpresa de los Siete Mares.</div>
+        </div>
+      </div>
+      <div class="text-center">
+        <button id="closeLegendBtn" class="btn-pirate font-pirate text-2xl px-8 py-2 rounded-2xl">
+          ¡Entendido, Capitán!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL CONFIRMAR SALIDA ==================== -->
+  <div id="confirmExitModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="parchment-box w-full max-w-sm rounded-3xl p-6 text-center animate-pop">
+      <div class="text-5xl mb-2">⚓</div>
+      <h3 class="font-pirate text-3xl text-amber-950 mb-2">¿Abandonar la Partida?</h3>
+      <p class="text-amber-900 text-sm mb-5">Si eres cliente, tu barco pasará a ser controlado por un Bot IA.</p>
+      <div class="flex justify-center gap-3">
+        <button id="cancelExitBtn" class="px-5 py-2.5 rounded-xl font-bold bg-amber-900/20 text-amber-950 border-2 border-amber-800">
+          Seguir Jugando
+        </button>
+        <button id="confirmExitBtn" class="btn-red font-bold px-5 py-2.5 rounded-xl">
+          Salir al Lobby
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PANTALLA 3: PODIO FINAL SINCRONIZADO ==================== -->
+  <div id="victoryScreen" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+    <div class="parchment-box w-full max-w-2xl rounded-3xl p-6 sm:p-8 text-center animate-pop my-auto">
+      <div class="text-5xl sm:text-6xl mb-1">👑🏴‍☠️🏆</div>
+      <h1 class="font-pirate text-4xl sm:text-6xl text-amber-950 mb-1">¡El Rey de los Piratas!</h1>
+      <p id="victorySubtitle" class="text-amber-900 font-bold text-base sm:text-lg mb-6">
+        ¡La flota más temida de los Siete Mares ha sido coronada!
+      </p>
+
+      <div id="podiumContainer" class="flex items-end justify-center gap-3 sm:gap-5 mb-6 min-h-[190px]"></div>
+      <div id="finalStatsList" class="space-y-2 mb-6 text-left"></div>
+
+      <button id="backToLobbyVictoryBtn" class="btn-pirate font-pirate text-3xl px-9 py-3 rounded-2xl inline-flex items-center gap-2">
+        <span>🔄</span> Volver al Lobby (Mantener Sala)
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== LÓGICA PRINCIPAL P2P CON PEERJS ==================== -->
+  <script>
+    /* ==========================================================================
+       1. CONSTANTES DE PERSONALIZACIÓN Y MAPA DE 24 CASILLAS
+       ========================================================================== */
+    const SAIL_COLORS = [
+      { name: 'Carmesí', hex: '#ef4444' },
+      { name: 'Zafiro', hex: '#3b82f6' },
+      { name: 'Esmeralda', hex: '#10b981' },
+      { name: 'Oro', hex: '#f59e0b' },
+      { name: 'Púrpura', hex: '#8b5cf6' },
+      { name: 'Turquesa', hex: '#06b6d4' }
+    ];
+
+    const EMBLEM_OPTIONS = [
+      { label: 'Calavera', icon: '💀' },
+      { label: 'Espadas', icon: '⚔️' },
+      { label: 'Ancla', icon: '⚓' },
+      { label: 'Kraken', icon: '🐙' },
+      { label: 'Corona', icon: '👑' },
+      { label: 'Timón', icon: '☸️' }
+    ];
+
+    // Tablero de 24 casillas: Tesoro, Taberna, Remolino, Duelo PvP, Kraken, Evento Misterioso
+    const TILE_TYPES = [
+      { type: 'port', icon: '⚓', label: 'Puerto Inicial', color: '#f59e0b' },
+      { type: 'treasure', icon: '💰', label: 'Cofre del Tesoro', color: '#eab308' },
+      { type: 'tavern', icon: '🍺', label: 'Taberna del Corsario', color: '#10b981' },
+      { type: 'mystery', icon: '❓', label: 'Evento Misterioso', color: '#8b5cf6' },
+      { type: 'duel', icon: '💣', label: 'Duelo de Cañones', color: '#ef4444' },
+      { type: 'whirlpool', icon: '🌀', label: 'Remolino Marino', color: '#06b6d4' },
+      { type: 'treasure', icon: '💎', label: 'Isla de Diamantes', color: '#eab308' },
+      { type: 'kraken', icon: '🐙', label: 'Guarida del Kraken', color: '#ec4899' },
+      { type: 'tavern', icon: '🍺', label: 'Taberna Tortuga', color: '#10b981' },
+      { type: 'mystery', icon: '❓', label: 'Botella con Mensaje', color: '#8b5cf6' },
+      { type: 'treasure', icon: '👑', label: 'Galeón Hundido', color: '#eab308' },
+      { type: 'duel', icon: '💣', label: 'Estrecho de Pólvora', color: '#ef4444' },
+      { type: 'tavern', icon: '🍺', label: 'Posada del Ron', color: '#10b981' },
+      { type: 'whirlpool', icon: '🌀', label: 'Corriente Abisal', color: '#06b6d4' },
+      { type: 'treasure', icon: '💰', label: 'Cueva Dorada', color: '#eab308' },
+      { type: 'kraken', icon: '🐙', label: 'Tentáculos Gigantes', color: '#ec4899' },
+      { type: 'mystery', icon: '❓', label: 'Mapa Antiguo', color: '#8b5cf6' },
+      { type: 'tavern', icon: '🍺', label: 'Muelle Bucanero', color: '#10b981' },
+      { type: 'duel', icon: '💣', label: 'Bahía de Batalla', color: '#ef4444' },
+      { type: 'treasure', icon: '💎', label: 'Arrecife de Rubíes', color: '#eab308' },
+      { type: 'whirlpool', icon: '🌀', label: 'Maelstrom', color: '#06b6d4' },
+      { type: 'tavern', icon: '🍺', label: 'Cantina Pirata', color: '#10b981' },
+      { type: 'mystery', icon: '❓', label: 'Profecía Marina', color: '#8b5cf6' },
+      { type: 'treasure', icon: '🏆', label: 'El Gran Botín', color: '#eab308' }
+    ];
+
+    const TILE_COORDS = [
+      { x: 0.14, y: 0.80 }, { x: 0.25, y: 0.84 }, { x: 0.37, y: 0.82 }, { x: 0.49, y: 0.85 },
+      { x: 0.61, y: 0.83 }, { x: 0.73, y: 0.85 }, { x: 0.85, y: 0.79 }, { x: 0.89, y: 0.66 },
+      { x: 0.86, y: 0.52 }, { x: 0.89, y: 0.38 }, { x: 0.84, y: 0.23 }, { x: 0.72, y: 0.17 },
+      { x: 0.59, y: 0.19 }, { x: 0.47, y: 0.16 }, { x: 0.35, y: 0.19 }, { x: 0.23, y: 0.17 },
+      { x: 0.12, y: 0.24 }, { x: 0.10, y: 0.38 }, { x: 0.14, y: 0.51 }, { x: 0.26, y: 0.54 },
+      { x: 0.38, y: 0.48 }, { x: 0.51, y: 0.52 }, { x: 0.36, y: 0.66 }, { x: 0.21, y: 0.67 }
+    ];
+
+    const DECORATIVE_ISLANDS = [
+      { nx: 0.58, ny: 0.33, rx: 64, ry: 42, hasVolcano: true },
+      { nx: 0.69, ny: 0.65, rx: 56, ry: 36, hasVolcano: false },
+      { nx: 0.25, ny: 0.35, rx: 44, ry: 30, hasVolcano: false }
+    ];
+
+    const SEA_CLOUDS = Array.from({ length: 6 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      speed: 0.004 + Math.random() * 0.005,
+      scale: 0.7 + Math.random() * 0.6
+    }));
+
+    /* ==========================================================================
+       2. SISTEMA DE AUDIO SINTETIZADO (WEB AUDIO API)
+       ========================================================================== */
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      const icon = soundEnabled ? '🔊' : '🔇';
+      document.getElementById('soundIconLobby').textContent = icon;
+      document.getElementById('soundIconGame').textContent = icon;
+      if (soundEnabled) {
+        initAudio();
+        playSfx('coin');
+      }
+    }
+
+    function playSfx(type) {
+      if (!soundEnabled) return;
+      initAudio();
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+
+      if (type === 'dice') {
+        for (let i = 0; i < 4; i++) {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(220 + i * 75, now + i * 0.06);
+          gain.gain.setValueAtTime(0.15, now + i * 0.06);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.05);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + i * 0.06);
+          osc.stop(now + i * 0.06 + 0.055);
+        }
+      } else if (type === 'step') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(520, now + 0.09);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.11);
+      } else if (type === 'coin') {
+        [987.77, 1318.51].forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+          gain.gain.setValueAtTime(0.18, now + idx * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.25);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + idx * 0.08);
+          osc.stop(now + idx * 0.08 + 0.26);
+        });
+      } else if (type === 'turn') {
+        [659.25, 880].forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.11);
+          gain.gain.setValueAtTime(0.16, now + idx * 0.11);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.11 + 0.35);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + idx * 0.11);
+          osc.stop(now + idx * 0.11 + 0.36);
+        });
+      } else if (type === 'cannon') {
+        const bufferSize = audioCtx.sampleRate * 0.45;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.12));
+        }
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(450, now);
+        filter.frequency.exponentialRampToValueAtTime(70, now + 0.4);
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.32, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        noise.start(now);
+      } else if (type === 'kraken') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(110, now);
+        osc.frequency.linearRampToValueAtTime(52, now + 0.55);
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.58);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.6);
+      } else if (type === 'fanfare') {
+        const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50];
+        const times = [0, 0.12, 0.24, 0.36, 0.52, 0.66];
+        notes.forEach((freq, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + times[i]);
+          gain.gain.setValueAtTime(0.2, now + times[i]);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + times[i] + 0.22);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + times[i]);
+          osc.stop(now + times[i] + 0.24);
+        });
+      }
+    }
+
+    /* ==========================================================================
+       3. ARQUITECTURA HOST-CLIENTE EN PEERJS (WEBRTC DIRECTO)
+       ========================================================================== */
+    const PEER_PREFIX = 'pirata-';
+    let peer = null;
+    let isHost = false;
+    let myPlayerId = null;
+    let roomCode = null;
+
+    // Mapa de conexiones activas (solo usado por el Host: peerId -> DataConnection)
+    const clientConnections = new Map();
+    // Conexión hacia el Host (solo usado por el Cliente)
+    let hostConnection = null;
+
+    // Perfil local elegido en el Lobby
+    let myProfile = {
+      name: `Capitán ${Math.floor(100 + Math.random() * 899)}`,
+      color: SAIL_COLORS[0].hex,
+      badge: EMBLEM_OPTIONS[0].icon
+    };
+
+    // Estado maestro autoritativo de la sala (el Host lo modifica y lo difunde)
+    let masterState = null;
+
+    // Estado visual local para animaciones suaves
+    const visualShips = {};
+    let particles = [];
+    let lastRenderedEventId = null;
+    let lastTurnPlayerId = null;
+    let aiTurnTimeout = null;
+
+    function generateShortCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    function setP2PStatus(text, statusType = 'ok') {
+      const dot = document.getElementById('p2pStatusDot');
+      const label = document.getElementById('p2pStatusText');
+      label.textContent = text;
+      if (statusType === 'ok') dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+      else if (statusType === 'loading') dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping';
+      else dot.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+    }
+
+    function showLobbyFeedback(msg, isError = true) {
+      const box = document.getElementById('lobbyFeedbackMsg');
+      box.textContent = msg;
+      box.className = `mt-4 text-sm font-bold px-4 py-2.5 rounded-xl text-center ${
+        isError ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
+      }`;
+      box.classList.remove('hidden');
+      setTimeout(() => box.classList.add('hidden'), 4500);
+    }
+
+    function destroyPeerNetwork() {
+      clearTimeout(aiTurnTimeout);
+      clientConnections.clear();
+      if (hostConnection) {
+        try { hostConnection.close(); } catch (e) {}
+        hostConnection = null;
+      }
+      if (peer) {
+        try { peer.destroy(); } catch (e) {}
+        peer = null;
+      }
+      isHost = false;
+      roomCode = null;
+      masterState = null;
+      lastRenderedEventId = null;
+    }
+
+    /* --- OPCIÓN A: CREAR SALA COMO ANFITRIÓN (HOST) --- */
+    function createRoomAsHost() {
+      initAudio();
+      const inputName = document.getElementById('pirateNameInput').value.trim();
+      if (inputName) myProfile.name = inputName;
+
+      destroyPeerNetwork();
+      isHost = true;
+      roomCode = generateShortCode();
+      const fullPeerId = `${PEER_PREFIX}${roomCode}`;
+      const maxRounds = parseInt(document.getElementById('roundsSelect').value, 10) || 8;
+
+      setP2PStatus(`Creando sala ${roomCode}...`, 'loading');
+
+      peer = new Peer(fullPeerId, { debug: 1 });
+
+      peer.on('open', (id) => {
+        myPlayerId = id;
+        setP2PStatus(`Sala ${roomCode} activa (Anfitrión)`, 'ok');
+        playSfx('coin');
+
+        masterState = {
+          roomCode,
+          hostId: myPlayerId,
+          status: 'lobby', // 'lobby' | 'playing' | 'finished'
+          maxRounds,
+          round: 1,
+          turnIndex: 0,
+          lastDice: null,
+          isBusy: false,
+          logText: `¡${myProfile.name} ha creado la sala ${roomCode}!`,
+          activeEvent: null,
+          players: [
+            {
+              id: myPlayerId,
+              name: myProfile.name,
+              color: myProfile.color,
+              badge: myProfile.badge,
+              isBot: false,
+              tileIndex: 0,
+              gold: 250,
+              pirates: 100000,
+              duelsWon: 0
+            }
+          ]
+        };
+
+        applyAuthoritativeState(masterState);
+      });
+
+      // Escuchar conexiones entrantes de los clientes
+      peer.on('connection', (conn) => {
+        conn.on('open', () => {
+          clientConnections.set(conn.peer, conn);
+        });
+
+        conn.on('data', (msg) => {
+          handleClientMessageOnHost(conn, msg);
+        });
+
+        conn.on('close', () => {
+          clientConnections.delete(conn.peer);
+          handleClientDisconnectOnHost(conn.peer);
+        });
+
+        conn.on('error', () => {
+          clientConnections.delete(conn.peer);
+          handleClientDisconnectOnHost(conn.peer);
+        });
+      });
+
+      peer.on('error', (err) => {
+        console.error('PeerJS Host error:', err);
+        if (err.type === 'unavailable-id') {
+          // Reintentar con otro código si hubo colisión
+          createRoomAsHost();
+        } else {
+          setP2PStatus('Error de red P2P', 'error');
+          showLobbyFeedback(`Error de conexión P2P: ${err.message || err.type}`);
+        }
+      });
+    }
+
+    // Difundir estado maestro a todos los clientes conectados y actualizar la UI del Host
+    function broadcastMasterState() {
+      if (!isHost || !masterState) return;
+      const payload = { type: 'STATE_SYNC', state: masterState };
+      clientConnections.forEach((conn) => {
+        if (conn.open) {
+          conn.send(payload);
+        }
+      });
+      applyAuthoritativeState(masterState);
+    }
+
+    // Manejo de desconexión de un cliente en pleno juego -> convertirlo en Bot IA
+    function handleClientDisconnectOnHost(disconnectedPeerId) {
+      if (!isHost || !masterState) return;
+      const pIdx = masterState.players.findIndex(p => p.id === disconnectedPeerId);
+      if (pIdx === -1) return;
+
+      const disconnectedPlayer = masterState.players[pIdx];
+
+      if (masterState.status === 'lobby') {
+        masterState.players.splice(pIdx, 1);
+        masterState.logText = `🚪 ${disconnectedPlayer.name} salió del puerto.`;
+        broadcastMasterState();
+      } else if (masterState.status === 'playing') {
+        // Convertir en Bot IA para que la partida continúe sin interrupciones
+        disconnectedPlayer.isBot = true;
+        disconnectedPlayer.name = `${disconnectedPlayer.name} (IA)`;
+        masterState.logText = `🤖 ${disconnectedPlayer.name} tomó el timón tras desconectarse.`;
+        broadcastMasterState();
+
+        // Si era su turno o tenía un minijuego abierto, la IA lo resuelve
+        scheduleBotTurnIfNeeded();
+      }
+    }
+
+    /* --- OPCIÓN B: UNIRSE A SALA COMO CLIENTE --- */
+    function joinRoomAsClient() {
+      initAudio();
+      const inputName = document.getElementById('pirateNameInput').value.trim();
+      if (inputName) myProfile.name = inputName;
+
+      const rawCode = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+      if (rawCode.length !== 4) {
+        return showLobbyFeedback('Escribe un código válido de 4 caracteres (ej. ABCD).');
+      }
+
+      destroyPeerNetwork();
+      isHost = false;
+      roomCode = rawCode;
+      const targetHostId = `${PEER_PREFIX}${roomCode}`;
+
+      setP2PStatus('Conectando con el capitán...', 'loading');
+      document.getElementById('joinClientBtn').disabled = true;
+
+      peer = new Peer({ debug: 1 });
+
+      peer.on('open', (id) => {
+        myPlayerId = id;
+        hostConnection = peer.connect(targetHostId, { reliable: true });
+
+        const connectionTimeout = setTimeout(() => {
+          if (!masterState) {
+            document.getElementById('joinClientBtn').disabled = false;
+            setP2PStatus('Tiempo de espera agotado', 'error');
+            showLobbyFeedback(`No se encontró la sala "${roomCode}". Verifica que el anfitrión tenga la sala abierta.`);
+          }
+        }, 7500);
+
+        hostConnection.on('open', () => {
+          clearTimeout(connectionTimeout);
+          document.getElementById('joinClientBtn').disabled = false;
+          setP2PStatus('Conectado al lobby', 'ok');
+          playSfx('coin');
+
+          // Enviar solicitud de ingreso con perfil del jugador
+          hostConnection.send({
+            type: 'JOIN_REQUEST',
+            profile: {
+              id: myPlayerId,
+              name: myProfile.name,
+              color: myProfile.color,
+              badge: myProfile.badge
+            }
+          });
+        });
+
+        hostConnection.on('data', (msg) => {
+          if (msg.type === 'STATE_SYNC') {
+            masterState = msg.state;
+            applyAuthoritativeState(masterState);
+          } else if (msg.type === 'JOIN_REJECTED') {
+            clearTimeout(connectionTimeout);
+            document.getElementById('joinClientBtn').disabled = false;
+            setP2PStatus('Acceso denegado', 'error');
+            showLobbyFeedback(msg.reason || 'No pudiste unirte a la sala.');
+            destroyPeerNetwork();
+          } else if (msg.type === 'REACTION') {
+            showLiveReactionBubble(msg.reaction);
+          }
+        });
+
+        hostConnection.on('close', () => {
+          setP2PStatus('Desconectado del anfitrión', 'error');
+          showLobbyFeedback('El anfitrión cerró la sala o se perdió la conexión.');
+          returnToInitialLobbyUI();
+        });
+
+        hostConnection.on('error', (err) => {
+          clearTimeout(connectionTimeout);
+          document.getElementById('joinClientBtn').disabled = false;
+          setP2PStatus('Error de conexión', 'error');
+          showLobbyFeedback('No se pudo establecer enlace con el capitán.');
+        });
+      });
+
+      peer.on('error', (err) => {
+        document.getElementById('joinClientBtn').disabled = false;
+        setP2PStatus('Sala no encontrada', 'error');
+        if (err.type === 'peer-unavailable') {
+          showLobbyFeedback(`El código "${roomCode}" no existe o la sala ya cerró.`);
+        } else {
+          showLobbyFeedback(`Error P2P: ${err.message || err.type}`);
+        }
+      });
+    }
+
+    // Enviar una acción al Host (si soy Host, la proceso localmente; si soy Cliente, la envío por WebRTC)
+    function dispatchActionToHost(actionObj) {
+      if (isHost) {
+        handleClientMessageOnHost({ peer: myPlayerId }, actionObj);
+      } else if (hostConnection && hostConnection.open) {
+        hostConnection.send(actionObj);
+      }
+    }
+
+    /* ==========================================================================
+       4. PROCESAMIENTO AUTORITATIVO EN EL HOST
+       ========================================================================== */
+    function handleClientMessageOnHost(conn, msg) {
+      if (!isHost || !masterState) return;
+      const senderId = conn.peer;
+
+      if (msg.type === 'JOIN_REQUEST') {
+        if (masterState.status !== 'lobby') {
+          conn.send({ type: 'JOIN_REJECTED', reason: 'La partida ya está en curso.' });
+          return;
+        }
+        if (masterState.players.length >= 4) {
+          conn.send({ type: 'JOIN_REJECTED', reason: 'La tripulación está llena (máximo 4).' });
+          return;
+        }
+
+        // Evitar duplicados
+        const exists = masterState.players.some(p => p.id === msg.profile.id);
+        if (!exists) {
+          const usedColors = masterState.players.map(p => p.color);
+          const safeColor = usedColors.includes(msg.profile.color)
+            ? (SAIL_COLORS.find(c => !usedColors.includes(c.hex))?.hex || msg.profile.color)
+            : msg.profile.color;
+
+          masterState.players.push({
+            id: msg.profile.id,
+            name: msg.profile.name || 'Corsario',
+            color: safeColor,
+            badge: msg.profile.badge || '💀',
+            isBot: false,
+            tileIndex: 0,
+            gold: 250,
+            pirates: 100000,
+            duelsWon: 0
+          });
+          masterState.logText = `⛵ ¡${msg.profile.name} subió a bordo!`;
+        }
+        broadcastMasterState();
+        return;
+      }
+
+      if (msg.type === 'REACTION') {
+        // Difundir reacción a todos los clientes y mostrarla en el Host
+        clientConnections.forEach(c => {
+          if (c.open) c.send(msg);
+        });
+        showLiveReactionBubble(msg.reaction);
+        return;
+      }
+
+      if (msg.type === 'ROLL_DICE') {
+        const activePlayer = masterState.players[masterState.turnIndex];
+        if (!activePlayer || activePlayer.id !== senderId) return;
+        if (masterState.isBusy || masterState.activeEvent || masterState.status !== 'playing') return;
+
+        executeRollDiceOnHost(activePlayer);
+        return;
+      }
+
+      if (msg.type === 'RESOLVE_MINIGAME') {
+        const ev = masterState.activeEvent;
+        if (!ev || ev.resolved) return;
+
+        if (ev.kind === 'kraken' && ev.actorId === senderId) {
+          resolveKrakenResultOnHost(msg.won);
+        } else if (ev.kind === 'duel') {
+          // Tanto atacante como defensor pueden enviar su disparo sincronizado
+          resolveDuelShotOnHost(senderId, msg.accuracy);
+        }
+        return;
+      }
+
+      if (msg.type === 'CONTINUE_TURN') {
+        const ev = masterState.activeEvent;
+        if (!ev || !ev.resolved) return;
+        if (ev.actorId !== senderId) return;
+        finalizeEventAndNextTurnOnHost();
+      }
+    }
+
+    function addBotToLobby() {
+      if (!isHost || !masterState || masterState.status !== 'lobby') return;
+      if (masterState.players.length >= 4) return;
+
+      const botNames = ['Barba-IA', 'Capitán Tuerca', 'Corsario Bot', 'Almirante Chip'];
+      const usedColors = masterState.players.map(p => p.color);
+      const colorObj = SAIL_COLORS.find(c => !usedColors.includes(c.hex)) || SAIL_COLORS[1];
+      const botIdx = masterState.players.length;
+
+      masterState.players.push({
+        id: `bot-${Date.now()}-${botIdx}`,
+        name: botNames[botIdx % botNames.length],
+        color: colorObj.hex,
+        badge: '🤖',
+        isBot: true,
+        tileIndex: 0,
+        gold: 250,
+        pirates: 100000,
+        duelsWon: 0
+      });
+
+      playSfx('step');
+      masterState.logText = `🤖 Se unió un Bot IA a la tripulación.`;
+      broadcastMasterState();
+    }
+
+    function startMatchOnHost() {
+      if (!isHost || !masterState) return;
+      if (masterState.players.length < 2) return;
+
+      playSfx('fanfare');
+      masterState.status = 'playing';
+      masterState.round = 1;
+      masterState.turnIndex = 0;
+      masterState.lastDice = null;
+      masterState.isBusy = false;
+      masterState.activeEvent = null;
+      masterState.logText = `⛵ ¡Zarpa la flota! Turno de ${masterState.players[0].name}.`;
+
+      broadcastMasterState();
+      scheduleBotTurnIfNeeded();
+    }
+
+    function executeRollDiceOnHost(player) {
+      const roll = Math.floor(Math.random() * 6) + 1;
+      const totalTiles = TILE_TYPES.length;
+      const oldIndex = player.tileIndex;
+      const newIndex = (oldIndex + roll) % totalTiles;
+      const passedStart = (oldIndex + roll) >= totalTiles;
+
+      player.tileIndex = newIndex;
+      if (passedStart) {
+        player.gold += 150;
+        player.pirates = Math.min(1000000, player.pirates + 40000);
+      }
+
+      masterState.lastDice = roll;
+      masterState.isBusy = true;
+
+      const landedTile = TILE_TYPES[newIndex];
+      const rivalOnSameTile = masterState.players.find(p => p.id !== player.id && p.tileIndex === newIndex);
+
+      masterState.activeEvent = buildEventForTile(player, landedTile, rivalOnSameTile, passedStart);
+      masterState.logText = `🎲 ${player.name} sacó ${roll} → ${landedTile.label}.`;
+
+      broadcastMasterState();
+      scheduleBotTurnIfNeeded();
+    }
+
+    function buildEventForTile(player, tile, rivalOnSameTile, passedStart) {
+      const eventId = `ev_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const lapHtml = passedStart
+        ? '<br><span class="text-emerald-700 font-bold">✨ ¡Vuelta completa al mapa: +150 💰 y +40,000 piratas!</span>'
+        : '';
+
+      // Si cae en la misma casilla que otro barco o en casilla de Duelo -> Duelo PvP sincronizado
+      if (rivalOnSameTile || tile.type === 'duel') {
+        const target = rivalOnSameTile || masterState.players
+          .filter(p => p.id !== player.id)
+          .sort((a, b) => b.gold - a.gold)[0];
+
+        return {
+          id: eventId,
+          actorId: player.id,
+          actorName: player.name,
+          rivalId: target.id,
+          rivalName: target.name,
+          rivalIsBot: target.isBot,
+          kind: 'duel',
+          icon: rivalOnSameTile ? '⚔️' : '💣',
+          title: rivalOnSameTile ? '¡Abordaje en Alta Mar!' : '¡Duelo de Cañonazos!',
+          desc: `<b>${player.name}</b> vs <b>${target.name}</b>.<br>¡Ambos capitanes disparan! Quien detenga la mira más cerca del centro gana el duelo.${lapHtml}`,
+          shots: {},
+          resolved: false
+        };
+      }
+
+      if (tile.type === 'kraken') {
+        return {
+          id: eventId,
+          actorId: player.id,
+          actorName: player.name,
+          kind: 'kraken',
+          icon: '🐙',
+          title: '¡Ataque del Kraken!',
+          desc: `¡Tentáculos gigantes atrapan el barco de <b>${player.name}</b>!<br>Pulsa <b>8 veces</b> antes de que se agote el tiempo.${lapHtml}`,
+          resolved: false
+        };
+      }
+
+      // Multiplicador por tamaño de tripulación (reclutar piratas en Taberna multiplica ingresos)
+      const crewMultiplier = 1 + (player.pirates / 250000);
+
+      if (tile.type === 'treasure') {
+        const baseGold = (Math.floor(Math.random() * 4) + 3) * 50; // 150 - 300
+        const totalGold = Math.round(baseGold * crewMultiplier);
+        return {
+          id: eventId,
+          actorId: player.id,
+          kind: 'instant',
+          icon: tile.icon,
+          title: `¡${tile.label}!`,
+          desc: `<b>${player.name}</b> desentierra un cofre (x${crewMultiplier.toFixed(1)} por flota):<br><b>+${totalGold} Doblones 💰</b>.${lapHtml}`,
+          goldDelta: totalGold,
+          piratesDelta: 20000,
+          resolved: true
+        };
+      }
+
+      if (tile.type === 'tavern') {
+        const recruits = (Math.floor(Math.random() * 5) + 5) * 15000; // 75k - 135k
+        return {
+          id: eventId,
+          actorId: player.id,
+          kind: 'instant',
+          icon: '🍺',
+          title: `¡${tile.label}!`,
+          desc: `Nuevos bucaneros se unen a <b>${player.name}</b>:<br><b>+${recruits.toLocaleString('es-ES')} Piratas 🏴‍☠️</b> (aumenta tu multiplicador de oro).${lapHtml}`,
+          goldDelta: 40,
+          piratesDelta: recruits,
+          resolved: true
+        };
+      }
+
+      if (tile.type === 'whirlpool') {
+        const shift = Math.random() < 0.65 ? 3 : -2;
+        return {
+          id: eventId,
+          actorId: player.id,
+          kind: 'instant',
+          icon: '🌀',
+          title: `¡${tile.label}!`,
+          desc: shift > 0
+            ? `¡Una corriente impulsa a <b>${player.name}</b> <b>3 casillas adelante</b>!${lapHtml}`
+            : `¡El remolino arrastra a <b>${player.name}</b> <b>2 casillas atrás</b>!${lapHtml}`,
+          goldDelta: 0,
+          piratesDelta: 15000,
+          tileShift: shift,
+          resolved: true
+        };
+      }
+
+      if (tile.type === 'port') {
+        const bonus = 120;
+        return {
+          id: eventId,
+          actorId: player.id,
+          kind: 'instant',
+          icon: '⚓',
+          title: '¡Puerto Seguro!',
+          desc: `<b>${player.name}</b> amarra en el puerto principal: <b>+${bonus} Doblones 💰</b> y <b>+45,000 Piratas</b>.${lapHtml}`,
+          goldDelta: bonus,
+          piratesDelta: 45000,
+          resolved: true
+        };
+      }
+
+      // Evento Misterioso ('mystery')
+      const mysteryCards = [
+        { icon: '🗺️', title: '¡Mapa del Tesoro Perdido!', desc: `<b>${player.name}</b> halla un alijo secreto: <b>+260 💰</b> y <b>+85,000 Piratas</b>.`, goldDelta: 260, piratesDelta: 85000 },
+        { icon: '🌬️', title: '¡Vientos Alisios!', desc: `Las velas vuelan: <b>${player.name}</b> gana <b>+160 💰</b> y <b>+60,000 Piratas</b>.`, goldDelta: 160, piratesDelta: 60000 },
+        { icon: '🦜', title: '¡Motín del Loro!', desc: `Un motín cuesta a <b>${player.name}</b> <b>-75 Doblones 💰</b>.`, goldDelta: -75, piratesDelta: 0 },
+        { icon: '👑', title: '¡Tributo Corsario!', desc: `Tu leyenda crece: <b>+110,000 Piratas 🏴‍☠️</b> se unen a tu armada.`, goldDelta: 50, piratesDelta: 110000 }
+      ];
+      const card = mysteryCards[Math.floor(Math.random() * mysteryCards.length)];
+      return {
+        id: eventId,
+        actorId: player.id,
+        kind: 'instant',
+        icon: card.icon,
+        title: card.title,
+        desc: `${card.desc}${lapHtml}`,
+        goldDelta: card.goldDelta,
+        piratesDelta: card.piratesDelta,
+        resolved: true
+      };
+    }
+
+    function resolveKrakenResultOnHost(won) {
+      const ev = masterState.activeEvent;
+      if (!ev || ev.resolved) return;
+
+      masterState.activeEvent = won
+        ? {
+            ...ev,
+            resolved: true,
+            icon: '🏆',
+            title: '¡Kraken Derrotado!',
+            desc: `¡<b>${ev.actorName}</b> corta los tentáculos! Gana <b>+240 Doblones 💰</b> y <b>+80,000 Piratas</b>.`,
+            goldDelta: 240,
+            piratesDelta: 80000
+          }
+        : {
+            ...ev,
+            resolved: true,
+            icon: '💦',
+            title: '¡El Kraken te atrapó!',
+            desc: `<b>${ev.actorName}</b> pierde <b>-120 Doblones 💰</b> escapando del monstruo.`,
+            goldDelta: -120,
+            piratesDelta: 0
+          };
+
+      masterState.logText = won ? `🏆 ¡${ev.actorName} venció al Kraken!` : `🐙 ¡El Kraken saqueó a ${ev.actorName}!`;
+      broadcastMasterState();
+      scheduleBotTurnIfNeeded();
+    }
+
+    function resolveDuelShotOnHost(shooterId, accuracy) {
+      const ev = masterState.activeEvent;
+      if (!ev || ev.resolved || ev.kind !== 'duel') return;
+
+      if (shooterId !== ev.actorId && shooterId !== ev.rivalId) return;
+      ev.shots[shooterId] = accuracy;
+
+      // Si el defensor es un Bot IA, dispara automáticamente
+      if (ev.rivalIsBot && ev.shots[ev.rivalId] === undefined) {
+        ev.shots[ev.rivalId] = Math.round(35 + Math.random() * 55);
+      }
+
+      // Si ambos ya dispararon (o si es contra Bot y el atacante disparó)
+      if (ev.shots[ev.actorId] !== undefined && ev.shots[ev.rivalId] !== undefined) {
+        const atkAcc = ev.shots[ev.actorId];
+        const defAcc = ev.shots[ev.rivalId];
+        const rival = masterState.players.find(p => p.id === ev.rivalId);
+        const actor = masterState.players.find(p => p.id === ev.actorId);
+
+        if (atkAcc >= defAcc) {
+          const loot = Math.min(rival ? rival.gold : 150, 160);
+          masterState.activeEvent = {
+            ...ev,
+            resolved: true,
+            icon: '💥',
+            title: `¡Victoria de ${ev.actorName}!`,
+            desc: `Puntería: <b>${ev.actorName} (${atkAcc}%)</b> vs <b>${ev.rivalName} (${defAcc}%)</b>.<br>¡Saqueas <b>+${loot + 80} Doblones 💰</b> y reclutas <b>+65,000 Piratas</b>!`,
+            goldDelta: loot + 80,
+            piratesDelta: 65000,
+            rivalGoldDelta: -loot,
+            winnerId: ev.actorId
+          };
+        } else {
+          const penalty = Math.min(actor ? actor.gold : 100, 110);
+          masterState.activeEvent = {
+            ...ev,
+            resolved: true,
+            icon: '🛡️',
+            title: `¡Contraataque de ${ev.rivalName}!`,
+            desc: `Puntería: <b>${ev.actorName} (${atkAcc}%)</b> vs <b>${ev.rivalName} (${defAcc}%)</b>.<br>¡${ev.rivalName} gana el duelo y te roba <b>${penalty} Doblones 💰</b>!`,
+            goldDelta: -penalty,
+            piratesDelta: 0,
+            rivalGoldDelta: penalty + 60,
+            winnerId: ev.rivalId
+          };
+        }
+
+        masterState.logText = `💣 ${masterState.activeEvent.title}`;
+        broadcastMasterState();
+        scheduleBotTurnIfNeeded();
+      } else {
+        // Actualizar estado para mostrar que uno de los dos ya disparó
+        broadcastMasterState();
+      }
+    }
+
+    function finalizeEventAndNextTurnOnHost() {
+      const ev = masterState.activeEvent;
+      if (!ev) return;
+
+      const totalTiles = TILE_TYPES.length;
+      masterState.players.forEach(p => {
+        if (p.id === ev.actorId) {
+          if (ev.tileShift) {
+            p.tileIndex = (p.tileIndex + ev.tileShift + totalTiles) % totalTiles;
+          }
+          p.gold = Math.max(0, p.gold + (ev.goldDelta || 0));
+          p.pirates = Math.min(1000000, Math.max(0, p.pirates + (ev.piratesDelta || 0)));
+        }
+        if (ev.rivalId && p.id === ev.rivalId && ev.rivalGoldDelta) {
+          p.gold = Math.max(0, p.gold + ev.rivalGoldDelta);
+        }
+        if (ev.winnerId && p.id === ev.winnerId) {
+          p.duelsWon = (p.duelsWon || 0) + 1;
+        }
+      });
+
+      const millionaire = masterState.players.find(p => p.pirates >= 1000000);
+      masterState.turnIndex++;
+      if (masterState.turnIndex >= masterState.players.length) {
+        masterState.turnIndex = 0;
+        masterState.round++;
+      }
+
+      const isGameOver = Boolean(millionaire) || masterState.round > masterState.maxRounds;
+      masterState.activeEvent = null;
+      masterState.isBusy = false;
+
+      if (isGameOver) {
+        masterState.status = 'finished';
+        masterState.logText = '👑 ¡Travesía finalizada! Coronando al Rey de los Piratas.';
+      } else {
+        const nextP = masterState.players[masterState.turnIndex];
+        masterState.logText = `⛵ Ronda ${masterState.round}: Turno de ${nextP.name}.`;
+      }
+
+      broadcastMasterState();
+      if (!isGameOver) {
+        scheduleBotTurnIfNeeded();
+      }
+    }
+
+    // Automatización de turnos para Bots IA (en el Host)
+    function scheduleBotTurnIfNeeded() {
+      if (!isHost || !masterState || masterState.status !== 'playing') return;
+      clearTimeout(aiTurnTimeout);
+
+      const activePlayer = masterState.players[masterState.turnIndex];
+      const ev = masterState.activeEvent;
+
+      // Caso 1: Hay un evento pendiente cuyo actor es un Bot
+      if (ev && activePlayer && activePlayer.isBot) {
+        aiTurnTimeout = setTimeout(() => {
+          if (!masterState || !masterState.activeEvent) return;
+          if (!masterState.activeEvent.resolved) {
+            if (masterState.activeEvent.kind === 'kraken') {
+              resolveKrakenResultOnHost(Math.random() < 0.6);
+            } else if (masterState.activeEvent.kind === 'duel') {
+              resolveDuelShotOnHost(activePlayer.id, Math.round(40 + Math.random() * 55));
+            }
+          } else {
+            finalizeEventAndNextTurnOnHost();
+          }
+        }, 1500);
+        return;
+      }
+
+      // Caso 2: Es turno normal de un Bot para tirar el dado
+      if (!ev && !masterState.isBusy && activePlayer && activePlayer.isBot) {
+        aiTurnTimeout = setTimeout(() => {
+          if (masterState && masterState.status === 'playing' && !masterState.isBusy) {
+            executeRollDiceOnHost(activePlayer);
+          }
+        }, 1100);
+      }
+    }
+
+    /* ==========================================================================
+       5. ACTUALIZACIÓN DE INTERFAZ EN TODOS LOS DISPOSITIVOS (HOST Y CLIENTES)
+       ========================================================================== */
+    function applyAuthoritativeState(state) {
+      if (!state) return;
+
+      // 1. PANTALLA LOBBY
+      if (state.status === 'lobby') {
+        document.getElementById('lobbyScreen').classList.remove('hidden');
+        document.getElementById('gameScreen').classList.add('hidden');
+        document.getElementById('gameScreen').classList.remove('flex');
+        document.getElementById('victoryScreen').classList.add('hidden');
+
+        document.getElementById('profileSetupSection').classList.add('hidden');
+        document.getElementById('lobbyChoiceSection').classList.add('hidden');
+        document.getElementById('waitingRoomSection').classList.remove('hidden');
+
+        document.getElementById('activeRoomCodeDisplay').textContent = state.roomCode;
+        document.getElementById('crewCountText').textContent = state.players.length;
+        document.getElementById('lobbyRoundsBadge').textContent = `${state.maxRounds} Rondas`;
+
+        const listEl = document.getElementById('waitingPlayersList');
+        listEl.innerHTML = '';
+        state.players.forEach(p => {
+          const isPlayerHost = p.id === state.hostId;
+          const isMe = p.id === myPlayerId;
+          const card = document.createElement('div');
+          card.className = 'bg-white/85 rounded-2xl p-3 border-2 flex items-center gap-3 shadow-sm';
+          card.style.borderColor = p.color;
+          card.innerHTML = `
+            <div class="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0 border border-amber-950/30" style="background:${p.color}">
+              ${p.badge}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="font-bold text-amber-950 text-sm truncate">
+                ${p.name} ${isMe ? '(Tú)' : ''}
+              </div>
+              <div class="text-xs font-bold ${isPlayerHost ? 'text-amber-700' : p.isBot ? 'text-sky-700' : 'text-emerald-700'}">
+                ${isPlayerHost ? '👑 Anfitrión' : p.isBot ? '🤖 Bot IA' : '⚓ Conectado P2P'}
+              </div>
+            </div>
+          `;
+          listEl.appendChild(card);
+        });
+
+        const addBotBtn = document.getElementById('addBotBtn');
+        const startBtn = document.getElementById('startMatchBtn');
+        const hintText = document.getElementById('waitingHintText');
+
+        if (isHost) {
+          addBotBtn.classList.toggle('hidden', state.players.length >= 4);
+          startBtn.classList.remove('hidden');
+          startBtn.disabled = state.players.length < 2;
+          hintText.textContent = state.players.length < 2
+            ? 'Invita a un amigo con el código o añade un Bot IA para poder zarpar.'
+            : '¡Tripulación lista! Pulsa ¡Zarpar! para comenzar la travesía.';
+        } else {
+          addBotBtn.classList.add('hidden');
+          startBtn.classList.add('hidden');
+          hintText.textContent = '⏳ Conectado al lobby. Esperando a que el anfitrión pulse ¡Zarpar!...';
+        }
+        return;
+      }
+
+      // 2. PANTALLA DE JUEGO ACTIVA
+      if (state.status === 'playing') {
+        document.getElementById('lobbyScreen').classList.add('hidden');
+        document.getElementById('victoryScreen').classList.add('hidden');
+        document.getElementById('gameScreen').classList.remove('hidden');
+        document.getElementById('gameScreen').classList.add('flex');
+        resizeCanvas();
+
+        state.players.forEach(p => {
+          if (!visualShips[p.id]) {
+            visualShips[p.id] = {
+              x: TILE_COORDS[p.tileIndex].x,
+              y: TILE_COORDS[p.tileIndex].y
+            };
+          }
+        });
+
+        renderGameHUD(state);
+        renderEventOrMinigameModal(state);
+        return;
+      }
+
+      // 3. PANTALLA DE PODIO FINAL
+      if (state.status === 'finished') {
+        document.getElementById('eventModal').classList.add('hidden');
+        renderVictoryPodio(state);
+      }
+    }
+
+    function renderGameHUD(state) {
+      document.getElementById('hudRoomCode').textContent = state.roomCode;
+      document.getElementById('roundDisplay').textContent = `${state.round} / ${state.maxRounds}`;
+      document.getElementById('lastLogText').textContent = state.logText || '';
+
+      if (state.lastDice) {
+        const diceBox = document.getElementById('diceResultBox');
+        if (diceBox.textContent !== String(state.lastDice)) {
+          diceBox.textContent = state.lastDice;
+          diceBox.classList.remove('animate-dice');
+          void diceBox.offsetWidth;
+          diceBox.classList.add('animate-dice');
+          playSfx('dice');
+        }
+      }
+
+      // Marcadores superiores
+      const sb = document.getElementById('scoreboardContainer');
+      sb.innerHTML = '';
+      state.players.forEach((p, idx) => {
+        const isTurn = idx === state.turnIndex;
+        const isMe = p.id === myPlayerId;
+        const card = document.createElement('div');
+        card.className = `px-2.5 py-1 rounded-xl border-2 flex items-center gap-2 shrink-0 transition-all ${
+          isTurn ? 'bg-amber-100 text-amber-950 scale-105 shadow-lg' : 'bg-amber-950/75 text-amber-100 opacity-85'
+        }`;
+        card.style.borderColor = p.color;
+        card.innerHTML = `
+          <span class="w-7 h-7 rounded-lg flex items-center justify-center text-sm shadow" style="background:${p.color}">${p.badge}</span>
+          <div class="leading-tight">
+            <div class="font-bold text-xs truncate max-w-[85px] sm:max-w-[110px]">${p.name}${isMe ? ' (Tú)' : ''}</div>
+            <div class="text-[11px] font-semibold flex items-center gap-1.5">
+              <span>💰${p.gold}</span>
+              <span>🏴‍☠️${Math.round(p.pirates / 1000)}k</span>
+            </div>
+          </div>
+        `;
+        sb.appendChild(card);
+      });
+
+      const activePlayer = state.players[state.turnIndex] || state.players[0];
+      const isMyTurn = activePlayer.id === myPlayerId;
+
+      const flagBadge = document.getElementById('turnFlagBadge');
+      flagBadge.textContent = activePlayer.badge;
+      flagBadge.style.backgroundColor = activePlayer.color;
+
+      document.getElementById('turnPlayerName').textContent = isMyTurn
+        ? `¡TU TURNO! (${activePlayer.name})`
+        : activePlayer.name;
+
+      document.getElementById('turnRoleLabel').textContent = isMyTurn
+        ? '⭐ ¡Te toca lanzar el dado!'
+        : '⏳ Turno del capitán';
+
+      if (isMyTurn && lastTurnPlayerId !== activePlayer.id) {
+        playSfx('turn');
+        showBanner('⛵ ¡Es tu turno, Capitán!');
+      }
+      lastTurnPlayerId = activePlayer.id;
+
+      const rollBtn = document.getElementById('rollDiceBtn');
+      const rollBtnText = document.getElementById('rollBtnText');
+
+      if (isMyTurn && !state.isBusy && !state.activeEvent) {
+        rollBtn.disabled = false;
+        rollBtnText.textContent = '¡LANZAR DADO!';
+      } else if (isMyTurn) {
+        rollBtn.disabled = true;
+        rollBtnText.textContent = 'EN ACCIÓN...';
+      } else {
+        rollBtn.disabled = true;
+        rollBtnText.textContent = `TURNO DE ${activePlayer.name.toUpperCase()}`;
+      }
+    }
+
+    function renderEventOrMinigameModal(state) {
+      const modal = document.getElementById('eventModal');
+      const ev = state.activeEvent;
+
+      if (!ev) {
+        modal.classList.add('hidden');
+        lastRenderedEventId = null;
+        return;
+      }
+
+      const isActor = ev.actorId === myPlayerId;
+      const isRivalInDuel = ev.kind === 'duel' && ev.rivalId === myPlayerId;
+      const iconEl = document.getElementById('eventIcon');
+      const titleEl = document.getElementById('eventTitle');
+      const descEl = document.getElementById('eventDesc');
+      const miniArea = document.getElementById('minigameArea');
+      const continueBtn = document.getElementById('eventContinueBtn');
+      const waitText = document.getElementById('spectatorWaitText');
+
+      iconEl.textContent = ev.icon;
+      titleEl.textContent = ev.title;
+      descEl.innerHTML = ev.desc;
+      modal.classList.remove('hidden');
+
+      // Caso A: Evento ya resuelto
+      if (ev.resolved) {
+        miniArea.classList.add('hidden');
+        miniArea.innerHTML = '';
+        if (isActor) {
+          continueBtn.classList.remove('hidden');
+          waitText.classList.add('hidden');
+          continueBtn.onclick = () => dispatchActionToHost({ type: 'CONTINUE_TURN' });
+        } else {
+          continueBtn.classList.add('hidden');
+          waitText.textContent = `⏳ Esperando a que ${ev.actorName || 'el capitán activo'} continúe...`;
+          waitText.classList.remove('hidden');
+        }
+        return;
+      }
+
+      // Evitar reiniciar el HTML del minijuego si ya está montado para este mismo ID
+      const stateKey = `${ev.id}_${ev.resolved}`;
+      if (lastRenderedEventId === stateKey) {
+        if (ev.kind === 'duel' && ev.shots && ev.shots[myPlayerId] !== undefined) {
+          miniArea.innerHTML = `
+            <div class="bg-emerald-900/15 p-4 rounded-2xl border-2 border-emerald-700/40 font-bold text-emerald-950">
+              🎯 ¡Disparo realizado (${ev.shots[myPlayerId]}% precisión)! Esperando al otro capitán...
+            </div>
+          `;
+        }
+        return;
+      }
+      lastRenderedEventId = stateKey;
+
+      continueBtn.classList.add('hidden');
+      miniArea.classList.remove('hidden');
+
+      if (ev.kind === 'kraken') {
+        playSfx('kraken');
+        if (!isActor) {
+          waitText.textContent = `🐙 ¡${ev.actorName} está luchando contra el Kraken!`;
+          waitText.classList.remove('hidden');
+          miniArea.innerHTML = `<div class="bg-amber-950/15 p-4 rounded-2xl font-bold text-amber-950 animate-pulse">⚔️ ¡Cortando tentáculos en vivo!</div>`;
+          return;
+        }
+        waitText.classList.add('hidden');
+        mountKrakenMinigame(miniArea);
+      } else if (ev.kind === 'duel') {
+        playSfx('cannon');
+        if (!isActor && !isRivalInDuel) {
+          waitText.textContent = `💣 ¡Duelo de cañones entre ${ev.actorName} y ${ev.rivalName}!`;
+          waitText.classList.remove('hidden');
+          miniArea.innerHTML = `<div class="bg-amber-950/15 p-4 rounded-2xl font-bold text-amber-950 animate-pulse">🔥 ¡Apuntando los cañones!</div>`;
+          return;
+        }
+        waitText.classList.add('hidden');
+        mountDuelCannonMinigame(miniArea);
+      }
+    }
+
+    function mountKrakenMinigame(container) {
+      let hits = 0;
+      const target = 8;
+      let timeLeft = 4.8;
+      let done = false;
+
+      container.innerHTML = `
+        <div class="bg-amber-950/15 p-4 rounded-2xl border-2 border-amber-800/30">
+          <div class="flex justify-between text-sm font-bold text-amber-950 mb-1.5">
+            <span>⚔️ Cortes: <b id="kHits">0 / ${target}</b></span>
+            <span>⏱️ Tiempo: <b id="kTime">${timeLeft.toFixed(1)}s</b></span>
+          </div>
+          <div class="w-full h-4 bg-amber-950/20 rounded-full overflow-hidden mb-4">
+            <div id="kBar" class="h-full bg-emerald-500 transition-all duration-75" style="width: 0%"></div>
+          </div>
+          <button id="kBtn" class="btn-red font-pirate text-2xl px-6 py-3 rounded-2xl w-full shadow-lg">
+            ⚔️ ¡CORTAR TENTÁCULO! ⚔️
+          </button>
+        </div>
+      `;
+
+      const finish = (won) => {
+        if (done) return;
+        done = true;
+        clearInterval(timer);
+        dispatchActionToHost({ type: 'RESOLVE_MINIGAME', won });
+      };
+
+      document.getElementById('kBtn').onclick = () => {
+        if (done) return;
+        hits++;
+        playSfx('step');
+        document.getElementById('kHits').textContent = `${hits} / ${target}`;
+        document.getElementById('kBar').style.width = `${Math.min(100, (hits / target) * 100)}%`;
+        if (hits >= target) finish(true);
+      };
+
+      const timer = setInterval(() => {
+        timeLeft -= 0.1;
+        const tEl = document.getElementById('kTime');
+        if (tEl) tEl.textContent = `${Math.max(0, timeLeft).toFixed(1)}s`;
+        if (timeLeft <= 0) finish(false);
+      }, 100);
+    }
+
+    function mountDuelCannonMinigame(container) {
+      let pos = 0;
+      let dir = 1;
+      let fired = false;
+
+      container.innerHTML = `
+        <div class="bg-amber-950/15 p-4 rounded-2xl border-2 border-amber-800/30">
+          <div class="relative w-full h-8 bg-slate-800 rounded-full overflow-hidden border-2 border-amber-900 mb-4">
+            <div class="absolute top-0 bottom-0 left-[28%] right-[28%] bg-emerald-500/70"></div>
+            <div class="absolute top-0 bottom-0 left-[44%] right-[44%] bg-amber-400"></div>
+            <div id="duelCursor" class="absolute top-0 bottom-0 w-2.5 bg-white shadow-[0_0_8px_#fff]" style="left: 0%"></div>
+          </div>
+          <button id="duelFireBtn" class="btn-red font-pirate text-2xl px-6 py-3 rounded-2xl w-full shadow-lg">
+            🔥 ¡DISPARAR CAÑÓN! 🔥
+          </button>
+        </div>
+      `;
+
+      const loop = setInterval(() => {
+        if (fired) return;
+        pos += dir * 3.4;
+        if (pos >= 97) { pos = 97; dir = -1; }
+        if (pos <= 0) { pos = 0; dir = 1; }
+        const el = document.getElementById('duelCursor');
+        if (el) el.style.left = `${pos}%`;
+      }, 20);
+
+      document.getElementById('duelFireBtn').onclick = () => {
+        if (fired) return;
+        fired = true;
+        clearInterval(loop);
+        playSfx('cannon');
+        const dist = Math.abs(pos - 48.5);
+        const accuracy = Math.max(10, Math.round(100 - dist * 1.8));
+        dispatchActionToHost({ type: 'RESOLVE_MINIGAME', accuracy });
+      };
+    }
+
+    /* ==========================================================================
+       6. REACCIONES RÁPIDAS Y PODIO FINAL
+       ========================================================================== */
+    function sendQuickReaction(text) {
+      if (!masterState) return;
+      const me = masterState.players.find(p => p.id === myPlayerId) || myProfile;
+      playSfx('step');
+      const reactionObj = {
+        senderName: me.name,
+        senderBadge: me.badge,
+        senderColor: me.color,
+        text
+      };
+      dispatchActionToHost({ type: 'REACTION', reaction: reactionObj });
+    }
+
+    function showLiveReactionBubble(reaction) {
+      const container = document.getElementById('liveReactionsOverlay');
+      const bubble = document.createElement('div');
+      bubble.className = 'animate-bubble parchment-box px-3.5 py-1.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-lg';
+      bubble.style.borderColor = reaction.senderColor;
+      bubble.innerHTML = `
+        <span class="w-6 h-6 rounded-lg flex items-center justify-center text-xs shrink-0" style="background:${reaction.senderColor}">${reaction.senderBadge}</span>
+        <span><b>${reaction.senderName}:</b> ${reaction.text}</span>
+      `;
+      container.appendChild(bubble);
+      setTimeout(() => bubble.remove(), 3500);
+    }
+
+    let bannerTimeout = null;
+    function showBanner(text) {
+      const banner = document.getElementById('floatingBanner');
+      document.getElementById('floatingBannerInner').textContent = text;
+      banner.classList.remove('opacity-0', '-translate-y-4');
+      banner.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(bannerTimeout);
+      bannerTimeout = setTimeout(() => {
+        banner.classList.remove('opacity-100', 'translate-y-0');
+        banner.classList.add('opacity-0', '-translate-y-4');
+      }, 2400);
+    }
+
+    function renderVictoryPodio(state) {
+      playSfx('fanfare');
+      const ranked = state.players.map(p => ({
+        ...p,
+        finalScore: Math.min(1000000, p.pirates + p.gold * 120)
+      })).sort((a, b) => b.finalScore - a.finalScore);
+
+      const champ = ranked[0];
+      document.getElementById('victorySubtitle').innerHTML =
+        `¡<b>${champ.name}</b> es el Rey de los Piratas con <b>${champ.finalScore.toLocaleString('es-ES')}</b> piratas!`;
+
+      const podiumOrder = [];
+      if (ranked[1]) podiumOrder.push({ player: ranked[1], rank: 2, height: 'h-28', medal: '🥈' });
+      if (ranked[0]) podiumOrder.push({ player: ranked[0], rank: 1, height: 'h-36', medal: '🥇' });
+      if (ranked[2]) podiumOrder.push({ player: ranked[2], rank: 3, height: 'h-20', medal: '🥉' });
+
+      const podiumEl = document.getElementById('podiumContainer');
+      podiumEl.innerHTML = '';
+      podiumOrder.forEach(item => {
+        const col = document.createElement('div');
+        col.className = 'flex flex-col items-center w-24 sm:w-32';
+        col.innerHTML = `
+          <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl border-2 border-amber-950 shadow-md mb-1" style="background:${item.player.color}">
+            ${item.player.badge}
+          </div>
+          <div class="font-bold text-xs sm:text-sm text-amber-950 truncate w-full text-center mb-1">${item.player.name}</div>
+          <div class="${item.height} w-full rounded-t-2xl border-2 border-amber-900 flex flex-col items-center justify-center shadow-inner" style="background:${item.player.color}dd">
+            <span class="text-2xl sm:text-3xl">${item.medal}</span>
+            <span class="font-pirate text-white text-lg sm:text-xl">#${item.rank}</span>
+          </div>
+        `;
+        podiumEl.appendChild(col);
+      });
+
+      const statsList = document.getElementById('finalStatsList');
+      statsList.innerHTML = '';
+      ranked.forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between bg-amber-900/10 px-4 py-2.5 rounded-2xl border border-amber-800/25';
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5">
+            <span class="font-pirate text-xl text-amber-950 w-6">#${idx + 1}</span>
+            <span class="w-8 h-8 rounded-xl flex items-center justify-center text-base" style="background:${p.color}">${p.badge}</span>
+            <div>
+              <div class="font-bold text-amber-950 text-sm">${p.name}</div>
+              <div class="text-[11px] text-amber-800">⚔️ Duelos ganados: <b>${p.duelsWon || 0}</b></div>
+            </div>
+          </div>
+          <div class="text-right text-xs sm:text-sm font-bold text-amber-950">
+            <div>🏴‍☠️ ${p.finalScore.toLocaleString('es-ES')} piratas</div>
+            <div class="text-amber-800 text-xs">💰 ${p.gold} doblones</div>
+          </div>
+        `;
+        statsList.appendChild(row);
+      });
+
+      const backLobbyBtn = document.getElementById('backToLobbyVictoryBtn');
+      if (isHost) {
+        backLobbyBtn.classList.remove('hidden');
+        backLobbyBtn.onclick = () => {
+          masterState.status = 'lobby';
+          masterState.round = 1;
+          masterState.turnIndex = 0;
+          masterState.activeEvent = null;
+          masterState.isBusy = false;
+          masterState.players.forEach(p => {
+            p.tileIndex = 0;
+            p.gold = 250;
+            p.pirates = 100000;
+            p.duelsWon = 0;
+          });
+          masterState.logText = '🔄 ¡De vuelta en el puerto listos para otra travesía!';
+          broadcastMasterState();
+        };
+      } else {
+        backLobbyBtn.classList.add('hidden');
+      }
+
+      document.getElementById('victoryScreen').classList.remove('hidden');
+    }
+
+    function returnToInitialLobbyUI() {
+      document.getElementById('confirmExitModal').classList.add('hidden');
+      document.getElementById('eventModal').classList.add('hidden');
+      document.getElementById('victoryScreen').classList.add('hidden');
+      document.getElementById('gameScreen').classList.add('hidden');
+      document.getElementById('gameScreen').classList.remove('flex');
+
+      document.getElementById('lobbyScreen').classList.remove('hidden');
+      document.getElementById('profileSetupSection').classList.remove('hidden');
+      document.getElementById('lobbyChoiceSection').classList.remove('hidden');
+      document.getElementById('waitingRoomSection').classList.add('hidden');
+    }
+
+    /* ==========================================================================
+       7. RENDERIZADO EN HTML5 CANVAS (OCÉANO, BRÚJULA, ISLAS Y BARCOS)
+       ========================================================================== */
+    const canvas = document.getElementById('seaCanvas');
+    const ctx = canvas.getContext('2d');
+    let animTime = 0;
+
+    function resizeCanvas() {
+      if (!canvas.parentElement) return;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+
+      TILE_TYPES.forEach((tile, idx) => {
+        const tx = TILE_COORDS[idx].x * rect.width;
+        const ty = TILE_COORDS[idx].y * rect.height;
+        if (Math.hypot(clickX - tx, clickY - ty) < 28) {
+          playSfx('step');
+          showBanner(`${tile.icon} Casilla #${idx + 1}: ${tile.label}`);
+        }
+      });
+    });
+
+    function spawnSplash(nx, ny, color = '#e0f2fe') {
+      for (let i = 0; i < 6; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.001 + Math.random() * 0.0025;
+        particles.push({
+          nx, ny,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 1.0,
+          color,
+          size: 3 + Math.random() * 3
+        });
+      }
+    }
+
+    function drawOceanBoard(width, height) {
+      // 1. Océano degradado
+      const seaGrad = ctx.createRadialGradient(width * 0.5, height * 0.5, 40, width * 0.5, height * 0.5, Math.max(width, height) * 0.7);
+      seaGrad.addColorStop(0, '#0284c7');
+      seaGrad.addColorStop(0.55, '#0369a1');
+      seaGrad.addColorStop(1, '#082f49');
+      ctx.fillStyle = seaGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. Rosa de los Vientos / Brújula decorativa en el fondo marino
+      const cx = width * 0.5;
+      const cy = height * 0.48;
+      const compassR = Math.min(width, height) * 0.16;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.strokeStyle = 'rgba(254, 243, 199, 0.12)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, compassR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, compassR * 0.78, 0, Math.PI * 2);
+      ctx.stroke();
+
+      for (let i = 0; i < 8; i++) {
+        ctx.rotate(Math.PI / 4);
+        ctx.beginPath();
+        ctx.moveTo(0, -compassR);
+        ctx.lineTo(0, compassR);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 3. Olas animadas
+      ctx.strokeStyle = 'rgba(224, 242, 254, 0.14)';
+      ctx.lineWidth = 2;
+      for (let row = 1; row < 9; row++) {
+        const yBase = (height / 9) * row;
+        ctx.beginPath();
+        for (let x = 0; x <= width; x += 28) {
+          const waveY = yBase + Math.sin(x * 0.02 + animTime * 2.2 + row) * 4;
+          if (x === 0) ctx.moveTo(x, waveY);
+          else ctx.lineTo(x, waveY);
+        }
+        ctx.stroke();
+      }
+
+      // 4. Islas decorativas
+      DECORATIVE_ISLANDS.forEach(isl => {
+        const ix = isl.nx * width;
+        const iy = isl.ny * height;
+        const scale = Math.max(0.65, Math.min(width, height) / 700);
+        const rx = isl.rx * scale;
+        const ry = isl.ry * scale;
+
+        ctx.fillStyle = 'rgba(186, 230, 253, 0.25)';
+        ctx.beginPath();
+        ctx.ellipse(ix, iy, rx + 8 + Math.sin(animTime * 2) * 2, ry + 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.ellipse(ix, iy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#16a34a';
+        ctx.beginPath();
+        ctx.ellipse(ix, iy - 3, rx * 0.72, ry * 0.68, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (isl.hasVolcano) {
+          ctx.fillStyle = '#78350f';
+          ctx.beginPath();
+          ctx.moveTo(ix - 18, iy + 5);
+          ctx.lineTo(ix - 6, iy - 22);
+          ctx.lineTo(ix + 6, iy - 22);
+          ctx.lineTo(ix + 18, iy + 5);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.fillStyle = '#ef4444';
+          ctx.beginPath();
+          ctx.ellipse(ix, iy - 22, 6, 2.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+
+      // 5. Ruta punteada
+      ctx.save();
+      ctx.setLineDash([8, 8]);
+      ctx.lineDashOffset = -animTime * 18;
+      ctx.strokeStyle = 'rgba(254, 243, 199, 0.55)';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      TILE_COORDS.forEach((c, idx) => {
+        const x = c.x * width;
+        const y = c.y * height;
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+
+      // 6. Casillas
+      const tileRadius = Math.max(17, Math.min(25, Math.min(width, height) * 0.036));
+      TILE_TYPES.forEach((t, idx) => {
+        const x = TILE_COORDS[idx].x * width;
+        const y = TILE_COORDS[idx].y * height;
+
+        ctx.fillStyle = 'rgba(7, 30, 48, 0.45)';
+        ctx.beginPath();
+        ctx.arc(x, y + 4, tileRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath();
+        ctx.arc(x, y, tileRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = t.color;
+        ctx.stroke();
+
+        ctx.font = `${Math.round(tileRadius * 1.05)}px Fredoka, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(t.icon, x, y + 1);
+      });
+
+      // 7. Barcos sincronizados
+      if (masterState && masterState.players) {
+        masterState.players.forEach((p, idx) => {
+          const target = TILE_COORDS[p.tileIndex] || TILE_COORDS[0];
+          if (!visualShips[p.id]) {
+            visualShips[p.id] = { x: target.x, y: target.y };
+          }
+          const vs = visualShips[p.id];
+          const dist = Math.hypot(target.x - vs.x, target.y - vs.y);
+          if (dist > 0.015 && Math.random() < 0.35) {
+            spawnSplash(vs.x, vs.y);
+          }
+          vs.x += (target.x - vs.x) * 0.12;
+          vs.y += (target.y - vs.y) * 0.12;
+
+          const offsetAngle = (idx * Math.PI) / 2;
+          const bx = vs.x * width + Math.cos(offsetAngle) * 11;
+          const by = vs.y * height + Math.sin(offsetAngle) * 11 + Math.sin(animTime * 4 + idx) * 2.5;
+
+          const isCurrent = idx === masterState.turnIndex;
+          if (isCurrent) {
+            ctx.fillStyle = 'rgba(253, 224, 71, 0.38)';
+            ctx.beginPath();
+            ctx.arc(bx, by, 24 + Math.sin(animTime * 6) * 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Casco
+          ctx.fillStyle = '#451a03';
+          ctx.beginPath();
+          ctx.moveTo(bx - 16, by + 2);
+          ctx.lineTo(bx + 16, by + 2);
+          ctx.lineTo(bx + 11, by + 11);
+          ctx.lineTo(bx - 11, by + 11);
+          ctx.closePath();
+          ctx.fill();
+
+          // Mástil
+          ctx.strokeStyle = '#78350f';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(bx, by + 2);
+          ctx.lineTo(bx, by - 16);
+          ctx.stroke();
+
+          // Vela
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.moveTo(bx, by - 15);
+          ctx.quadraticCurveTo(bx + 15, by - 7, bx, by);
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+
+          // Emblema
+          ctx.font = '12px Fredoka, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(p.badge, bx, by - 21);
+        });
+      }
+
+      // 8. Partículas
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const pt = particles[i];
+        pt.nx += pt.vx;
+        pt.ny += pt.vy;
+        pt.life -= 0.03;
+        if (pt.life <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+        ctx.globalAlpha = pt.life;
+        ctx.fillStyle = pt.color;
+        ctx.beginPath();
+        ctx.arc(pt.nx * width, pt.ny * height, pt.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // 9. Nubes
+      SEA_CLOUDS.forEach(c => {
+        c.x += c.speed * 0.016;
+        if (c.x > 1.15) c.x = -0.15;
+        const cx = c.x * width;
+        const cy = c.y * height;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 26 * c.scale, 0, Math.PI * 2);
+        ctx.arc(cx + 22 * c.scale, cy - 6 * c.scale, 22 * c.scale, 0, Math.PI * 2);
+        ctx.arc(cx + 42 * c.scale, cy + 2 * c.scale, 18 * c.scale, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function animateLoop() {
+      animTime += 0.016;
+      if (!document.getElementById('gameScreen').classList.contains('hidden')) {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        drawOceanBoard(rect.width, rect.height);
+      }
+      requestAnimationFrame(animateLoop);
+    }
+
+    /* ==========================================================================
+       8. INICIALIZACIÓN DE CONTROLES DEL LOBBY Y PARÁMETRO URL (?sala=XXXX)
+       ========================================================================== */
+    function renderProfilePickers() {
+      const colorContainer = document.getElementById('sailColorPicker');
+      colorContainer.innerHTML = '';
+      SAIL_COLORS.forEach(c => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const isSelected = myProfile.color === c.hex;
+        btn.className = `w-7 h-7 rounded-full border-2 transition ${isSelected ? 'scale-115 border-amber-950 ring-2 ring-amber-500' : 'border-white/80 opacity-80 hover:opacity-100'}`;
+        btn.style.backgroundColor = c.hex;
+        btn.title = c.name;
+        btn.onclick = () => {
+          myProfile.color = c.hex;
+          playSfx('step');
+          renderProfilePickers();
+        };
+        colorContainer.appendChild(btn);
+      });
+
+      const emblemContainer = document.getElementById('emblemPicker');
+      emblemContainer.innerHTML = '';
+      EMBLEM_OPTIONS.forEach(em => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const isSelected = myProfile.badge === em.icon;
+        btn.className = `w-8 h-8 rounded-xl text-base flex items-center justify-center border-2 transition ${
+          isSelected ? 'bg-amber-400 border-amber-950 scale-110 shadow' : 'bg-amber-100 border-amber-800/30 hover:bg-amber-200'
+        }`;
+        btn.textContent = em.icon;
+        btn.title = em.label;
+        btn.onclick = () => {
+          myProfile.badge = em.icon;
+          playSfx('step');
+          renderProfilePickers();
+        };
+        emblemContainer.appendChild(btn);
+      });
+    }
+
+    function copyTextToClipboard(text, btnLabelEl, originalText) {
+      const temp = document.createElement('input');
+      temp.value = text;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      document.body.removeChild(temp);
+
+      playSfx('coin');
+      btnLabelEl.textContent = '¡Copiado!';
+      setTimeout(() => {
+        btnLabelEl.textContent = originalText;
+      }, 2000);
+    }
+
+    function bindAllEvents() {
+      document.getElementById('pirateNameInput').value = myProfile.name;
+      renderProfilePickers();
+
+      // Leer parámetro ?sala=XXXX de la URL si un amigo abrió el enlace compartido
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlRoomCode = urlParams.get('sala');
+      if (urlRoomCode) {
+        const cleanCode = urlRoomCode.trim().toUpperCase().slice(0, 4);
+        document.getElementById('joinCodeInput').value = cleanCode;
+        showLobbyFeedback(`🔗 Código de sala "${cleanCode}" detectado en el enlace. Pulsa "Unirse a la Tripulación".`, false);
+      }
+
+      document.getElementById('createHostBtn').onclick = createRoomAsHost;
+      document.getElementById('joinClientBtn').onclick = joinRoomAsClient;
+      document.getElementById('addBotBtn').onclick = addBotToLobby;
+      document.getElementById('startMatchBtn').onclick = startMatchOnHost;
+
+      document.getElementById('copyCodeBtn').onclick = () => {
+        if (!roomCode) return;
+        copyTextToClipboard(roomCode, document.getElementById('copyCodeLabel'), 'Copiar Código');
+      };
+
+      document.getElementById('copyLinkBtn').onclick = () => {
+        if (!roomCode) return;
+        const shareUrl = new URL(window.location.href);
+        shareUrl.searchParams.set('sala', roomCode);
+        copyTextToClipboard(shareUrl.toString(), document.getElementById('copyLinkLabel'), 'Copiar Enlace con Código');
+      };
+
+      document.getElementById('leaveLobbyBtn').onclick = () => {
+        destroyPeerNetwork();
+        setP2PStatus('Listo para zarpar (Conexión Directa P2P)', 'ok');
+        returnToInitialLobbyUI();
+      };
+
+      document.getElementById('rollDiceBtn').onclick = () => {
+        dispatchActionToHost({ type: 'ROLL_DICE' });
+      };
+
+      document.getElementById('exitGameBtn').onclick = () => document.getElementById('confirmExitModal').classList.remove('hidden');
+      document.getElementById('cancelExitBtn').onclick = () => document.getElementById('confirmExitModal').classList.add('hidden');
+      document.getElementById('confirmExitBtn').onclick = () => {
+        destroyPeerNetwork();
+        setP2PStatus('Listo para zarpar (Conexión Directa P2P)', 'ok');
+        returnToInitialLobbyUI();
+      };
+
+      document.getElementById('legendBtn').onclick = () => document.getElementById('legendModal').classList.remove('hidden');
+      document.getElementById('closeLegendBtn').onclick = () => document.getElementById('legendModal').classList.add('hidden');
+
+      document.getElementById('muteBtnLobby').onclick = toggleSound;
+      document.getElementById('muteBtnGame').onclick = toggleSound;
+
+      document.querySelectorAll('.quick-emote-btn').forEach(btn => {
+        btn.onclick = () => sendQuickReaction(btn.dataset.emote);
+      });
+    }
+
+    window.onload = function () {
+      bindAllEvents();
+      resizeCanvas();
+      animateLoop();
+    };
+  </script>
+</body>
+</html>
